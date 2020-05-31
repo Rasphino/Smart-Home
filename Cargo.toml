@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 rand = "0.7.3"
+config = "0.9"
+rust-crypto = "^0.2"
+hex = "0.4.2"
