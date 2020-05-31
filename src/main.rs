@@ -1,6 +1,13 @@
+extern crate reqwest;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde_json;
+
 mod data;
 mod DHT11;
 mod HCSR04;
+mod aliyun;
 
 use data::Data;
 
@@ -10,9 +17,6 @@ use std::time::Duration;
 use std::collections::HashMap;
 
 use config;
-use crypto::{md5, hmac};
-use crypto::mac::Mac;
-use hex;
 
 fn main() {
     // read configuration from file and environment variable
@@ -22,13 +26,8 @@ fn main() {
         .merge(config::Environment::with_prefix("APP")).unwrap();
     let configurations = configurations.try_into::<HashMap<String, String>>().unwrap();
 
-    // generate HmacMd5 and calculate sign for login
-    let mut mac = hmac::Hmac::<md5::Md5>::new(md5::Md5::new(), configurations.get("device_secret").unwrap().as_bytes());
-    mac.input(format!("clientId{}deviceName{}productKey{}",
-                      configurations.get("client_id").unwrap(),
-                      configurations.get("device_name").unwrap(),
-                      configurations.get("product_key").unwrap()).as_bytes());
-    let sign = mac.result().code();
+    let token = aliyun::login(&configurations).unwrap();
+    println!("Token: {}", token);
 
     let (dht_tx, rx) = mpsc::channel();
     let hc_tx = mpsc::Sender::clone(&dht_tx);
