@@ -5,8 +5,8 @@ extern crate serde_derive;
 extern crate serde_json;
 
 mod data;
-mod DHT11;
-mod HCSR04;
+mod dht11;
+mod hcsr04;
 mod aliyun;
 
 use data::Data;
@@ -34,14 +34,14 @@ fn main() {
 
     thread::spawn(move || {
         loop {
-            dht_tx.send(DHT11::collect_data()).unwrap();
+            dht_tx.send(dht11::collect_data()).unwrap();
             thread::sleep(Duration::from_secs(1));
         }
     });
 
     thread::spawn(move || {
         loop {
-            hc_tx.send(HCSR04::collect_data()).unwrap();
+            hc_tx.send(hcsr04::collect_data()).unwrap();
             thread::sleep(Duration::from_secs(10));
         }
     });
