@@ -4,11 +4,12 @@ use reqwest::blocking::Client;
 use crypto::{md5, hmac};
 use crypto::mac::Mac;
 use hex;
+use chrono::Utc;
 
-use crate::data::Data;
+use crate::dht11::Dht11Data;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct LoginResponse {
+struct Response {
     code: i32,
     info: Info,
     message: String,
@@ -16,7 +17,7 @@ struct LoginResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Info {
-    token: String
+    token: Option<String>,
 }
 
 pub struct Aliyun {
@@ -59,7 +60,7 @@ impl<'a> AliyunBuilder<'a> {
             "sign": sign
         });
 
-        let res: LoginResponse =  Client::new().post("https://iot-as-http.cn-shanghai.aliyuncs.com/auth")
+        let res: Response = Client::new().post("https://iot-as-http.cn-shanghai.aliyuncs.com/auth")
             .json(&body)
             .send().unwrap()
             .json().unwrap();
@@ -72,7 +73,7 @@ impl<'a> AliyunBuilder<'a> {
                 client_id: self.client_id.to_string(),
                 device_name: self.device_name.to_string(),
                 product_key: self.product_key.to_string(),
-                token: res.info.token
+                token: res.info.token.unwrap(),
             }
         } else {
             panic!("Server response code: {}, and message: {}", res.code, res.message)
@@ -81,7 +82,24 @@ impl<'a> AliyunBuilder<'a> {
 }
 
 impl Aliyun {
-    pub fn push(data: &Data) {
+    pub fn push(&self, data: &Dht11Data) {
+        let body = json!({
+            "id": Utc::now().timestamp(),
+            "params": {
+                "temperature": data.temperature,
+                "humidity": data.humidity
+            },
+            "method": "thing.event.property.post"
+        }).to_string();
+        println!("Body: {}", body);
 
+        let post_url = format!("https://iot-as-http.cn-shanghai.aliyuncs.com/topic/sys/{}/{}/thing/event/property/post", self.product_key, self.device_name);
+        let res: Response = Client::new().post(&post_url)
+            .body(body)
+            .header("password", &self.token)
+            .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+            .send().unwrap()
+            .json().unwrap();
+        println!("Res: {:?}", res);
     }
 }

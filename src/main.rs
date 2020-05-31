@@ -13,19 +13,16 @@ use data::Data;
 
 use std::thread;
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::collections::HashMap;
-use chrono::Utc;
 
 use config;
 
-use aliyun::Aliyun;
-use crate::aliyun::AliyunBuilder;
+use crate::aliyun::{Aliyun, AliyunBuilder};
+use crate::dht11::Dht11Data;
 
 fn main() {
-    let timestamp = Utc::now().timestamp();
-    println!("Time: {}", timestamp);
-
     // read configuration from file and environment variable
     let mut configurations = config::Config::default();
     configurations
@@ -45,18 +42,34 @@ fn main() {
         }
     });
 
-    thread::spawn(move || {
-        loop {
-            hc_tx.send(hcsr04::collect_data()).unwrap();
-            thread::sleep(Duration::from_secs(10));
-        }
-    });
+    // thread::spawn(move || {
+    //     loop {
+    //         hc_tx.send(hcsr04::collect_data()).unwrap();
+    //         thread::sleep(Duration::from_secs(10));
+    //     }
+    // });
+
+    let data = Arc::new(Mutex::new(Dht11Data::new()));
+    {
+        let data = Arc::clone(&data);
+        thread::spawn(move || {
+            loop {
+                thread::sleep(Duration::from_secs(5));
+                let d = *data.lock().unwrap();
+                println!("Send temperature: {} and humidity: {} to server", d.temperature, d.humidity);
+                aliyun.push(&d);
+            }
+        });
+    }
 
     for received in rx {
         match received {
             None => eprintln!("Failed reading data"),
-            Some(Data::DHT11(temperature, humidity)) => println!("Got temperature: {} and humidity: {}", temperature, humidity),
-            Some(Data::HCSR04(distance)) => println!("Got distance: {}", distance),
+            Some(d) => {
+                *data.lock().unwrap() = d;
+                // println!("Got temperature: {} and humidity: {}", temperature, humidity)
+            }
+            // Some(Data::HCSR04(distance)) => println!("Got distance: {}", distance),
         }
     }
 }
